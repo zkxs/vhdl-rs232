@@ -82,6 +82,15 @@ architecture Behavioral of rs232 is
         );
     end component;
     
+    -- synchronizer
+    component synchronizer is
+        port(
+            clk:  in  STD_LOGIC;
+            din:  in  STD_LOGIC;
+            dout: out STD_LOGIC
+        );
+    end component;
+    
     ----------------------------------------------------------------------------
     -- signal declarations
     ----------------------------------------------------------------------------
@@ -122,6 +131,7 @@ architecture Behavioral of rs232 is
     signal RxBuffer_index: natural;
     signal receiving: STD_LOGIC := '1'; -- this happens implicitly, so it's better to make it explicit
     signal receiving_clock_odd: STD_LOGIC;
+    signal receiving_synchronized: STD_LOGIC;
     signal receive_reset: STD_LOGIC := '0';
     
     -- ignoring the first receive looks better, because I can't set receiving := 0 on startup
@@ -237,9 +247,9 @@ begin
         variable btnRead_rising: STD_LOGIC;
     begin
         if receive_reset = '1' then
-            receiving <= '1';
             receiving_clock_odd <= '0';
             RxBuffer_index <= 0;
+            receiving <= '1';
         elsif rising_edge(clock_sampling) then
             btnRead_rising  := btnRead  and (not btnRead_old);
             btnRead_old  <= btnRead;
@@ -290,7 +300,7 @@ begin
             Rx_falling := (not i1Rx) and Rx_old;
             Rx_old <= i1Rx;
         
-            if Rx_falling = '1' and receiving /= '1' then -- Do I need to check for if I have CTS enabled?
+            if Rx_falling = '1' and receiving_synchronized /= '1' then -- Do I need to check for if I have CTS enabled?
             
                 if CTSout /= '0' then
                     debug_rx_forced <= '1';
@@ -298,7 +308,7 @@ begin
             
                 clock_sampling_reset <= '1';
                 receive_reset <= '1';
-            elsif receiving = '1' then
+            elsif receiving_synchronized = '1' then
                 clock_sampling_reset <= '0';
                 receive_reset <= '0';
             end if;
@@ -381,6 +391,14 @@ begin
             clock => clock,
             bouncy => i1debug_clear_error,
             debounced => debug_clear_error
-        );  
+        );
+    
+    
+    sync0: synchronizer
+        port map (
+            clk => clock,
+            din => receiving,
+            dout => receiving_synchronized
+        );
     
 end Behavioral;
