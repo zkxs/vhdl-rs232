@@ -35,6 +35,7 @@ entity rs232 is
         debug_rx_bad:        out STD_LOGIC;
         debug_rx_forced:     out STD_LOGIC;
         debug_firstrun:      out STD_LOGIC;
+        debug_tx_forced_indicator: out STD_LOGIC;
         i1debug_clear_error: in  STD_LOGIC;
         debug_tx_forced:     in  STD_LOGIC
     );
@@ -164,6 +165,7 @@ begin
                 and (RxBuffer(9) xnor RxParity(0))
                 and (RxBuffer(10))
                 and (not receiving);
+    debug_tx_forced_indicator <= '1' when debug_tx_forced = '1' else '0';
     
     -- calculate parity for receiving
     RxParity(6) <= RxBuffer_byte(7) xor RxBuffer_byte(6);
