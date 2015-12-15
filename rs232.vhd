@@ -199,7 +199,7 @@ begin
             if btnClear_rising = '1' then
                 var_transmitting := '0';
                 TxBuffer_in_use <= '0';
-            elsif btnTx_rising = '1' and TxBuffer_in_use = '1' and var_transmitting = '0' then -- if we want to send
+            elsif ((btnTx_rising = '1' and TxBuffer_in_use = '1') or debug_tx_forced = '1') and var_transmitting = '0' then -- if we want to send
                 var_transmitting := '1';
                 var_TxBuffer_index := 0;
             end if;
