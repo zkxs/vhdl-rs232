@@ -8,30 +8,33 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 entity rs232 is
     port (
-        clock:                in  STD_LOGIC; -- CLK
-        o8SevenSeg:           out STD_LOGIC_VECTOR(7 downto 0); -- seven seg
-        o4SelectSeg:          out STD_LOGIC_VECTOR(3 downto 0); -- seven seg anodes
+        clock:               in  STD_LOGIC; -- CLK
+        o8SevenSeg:          out STD_LOGIC_VECTOR(7 downto 0); -- seven seg
+        o4SelectSeg:         out STD_LOGIC_VECTOR(3 downto 0); -- seven seg anodes
         
-        i1Rx:                 in  STD_LOGIC;
-        o1Tx:                 out STD_LOGIC;
-        i1RTSin:              in  STD_LOGIC;
-        o1RTSout:             out STD_LOGIC;
-        i1CTSin:              in  STD_LOGIC;
-        o1CTSout:             out STD_LOGIC;
+        i1Rx:                in  STD_LOGIC;
+        o1Tx:                out STD_LOGIC;
+        i1RTSin:             in  STD_LOGIC;
+        o1RTSout:            out STD_LOGIC;
+        i1CTSin:             in  STD_LOGIC;
+        o1CTSout:            out STD_LOGIC;
         
-        o1TxBuffer_in_use:    out STD_LOGIC;
-        o1RxBuffer_in_use:    out STD_LOGIC;
-        o1CTSout_led:         out STD_LOGIC;
-        o1RTSout_led:         out STD_LOGIC;
+        o1TxBuffer_in_use:   out STD_LOGIC;
+        o1RxBuffer_in_use:   out STD_LOGIC;
+        o1CTSout_led:        out STD_LOGIC;
+        o1RTSout_led:        out STD_LOGIC;
         
-        i8switch:             in  STD_LOGIC_VECTOR(7 downto 0);
+        i8switch:            in  STD_LOGIC_VECTOR(7 downto 0);
         
-        i1BtnStore:           in  STD_LOGIC; -- store switches into TxBuffer_byte
-        i1BtnRead:            in  STD_LOGIC; -- read data from RxBuffer_byte
-        i1BtnTx:              in  STD_LOGIC; -- transmit data from TxBuffer_bytes
-        i1BtnClear:           in  STD_LOGIC; -- clear error status
+        i1BtnStore:          in  STD_LOGIC; -- store switches into TxBuffer_byte
+        i1BtnRead:           in  STD_LOGIC; -- read data from RxBuffer_byte
+        i1BtnTx:             in  STD_LOGIC; -- transmit data from TxBuffer_bytes
+        i1BtnClear:          in  STD_LOGIC; -- clear error status
         
-        debug_clock:          out STD_LOGIC
+        debug_clock:         out STD_LOGIC;
+        debug_rx_bad:        out STD_LOGIC;
+        debug_rx_forced:     out STD_LOGIC;
+        i1debug_clear_error: in  STD_LOGIC
     );
 end rs232;
 
@@ -80,9 +83,11 @@ architecture Behavioral of rs232 is
     -- signal declarations
     ----------------------------------------------------------------------------
     
+    signal debug_clear_error: STD_LOGIC;
+    
     signal TxBuffer: STD_LOGIC_VECTOR(10 downto 0);
-    signal RxBuffer: STD_LOGIC_VECTOR(10 downto 0);
-    signal TxBuffer_byte: STD_LOGIC_VECTOR(7 downto 0);
+    signal RxBuffer: STD_LOGIC_VECTOR(10 downto 0) := "10111011110";    -- EF
+    signal TxBuffer_byte: STD_LOGIC_VECTOR(7 downto 0) := "10111110"; -- BE
     signal RxBuffer_byte: STD_LOGIC_VECTOR(7 downto 0);
     signal TxBuffer_in_use: STD_LOGIC;
     signal RxBuffer_in_use: STD_LOGIC;
@@ -92,6 +97,7 @@ architecture Behavioral of rs232 is
     signal clock_transmit: STD_LOGIC;
     
     signal CTSout: STD_LOGIC;
+    signal CTSout_ondemand: STD_LOGIC;
     signal RTSout: STD_LOGIC := '0';
     
     signal btnStore: STD_LOGIC;
@@ -104,20 +110,25 @@ architecture Behavioral of rs232 is
     signal btnClear_old: STD_LOGIC := '0';
     signal Rx_old: STD_LOGIC := '0';
     
-    signal xor_cascade_calculate: STD_LOGIC_VECTOR(6 downto 0);
+    signal TxParity: STD_LOGIC_VECTOR(6 downto 0);
+    signal RxParity: STD_LOGIC_VECTOR(6 downto 0);
     
     signal TxBuffer_index: natural;
     signal transmitting: STD_LOGIC := '0';
     
     signal RxBuffer_index: natural;
-    signal receiving: STD_LOGIC;
+    signal receiving: STD_LOGIC := '1'; -- this happens implicitly, so it's better to make it explicit
     signal receiving_clock_odd: STD_LOGIC;
     signal receive_reset: STD_LOGIC := '0';
+    
+    -- ignoring the first receive looks better, because I can't set receiving := 0 on startup
+    signal receive_ignored: STD_LOGIC := '0';
 begin
     ----------------------------------------------------------------------------
     -- glue logic
     ----------------------------------------------------------------------------
-    debug_clock <= clock_sampling;
+    debug_clock <= receiving_clock_odd;
+    
     o1CTSout <= CTSout;
     o1RTSout <= RTSout;
     o1CTSout_led <= CTSout;
@@ -125,24 +136,38 @@ begin
     o1TxBuffer_in_use <= TxBuffer_in_use;
     o1RxBuffer_in_use <= RxBuffer_in_use;
     
-    CTSout <= not RxBuffer_in_use;
-    RTSout <= transmitting;
+    -- if I wanted to set CTSout simplisticly, I could do this:
+    --CTSout <= RxBuffer_in_use;
+    
+    -- if I wanted to set CTSout on demand, I could do this:
+    CTSout <= CTSout_ondemand;
+    
+    RTSout <= not transmitting;
     
     RxBuffer_byte <= RxBuffer(8 downto 1);
     TxBuffer(8 downto 1) <= TxBuffer_byte;
     TxBuffer(0) <= '0'; -- start bit
-    TxBuffer(9) <= not xor_cascade_calculate(0); -- set parity bit
+    TxBuffer(9) <= not TxParity(0); -- set parity bit
     TxBuffer(10) <= '1'; -- stop bit
     
-    -- calculate parity
-    xor_cascade_calculate(6) <= TxBuffer_byte(7) xor TxBuffer_byte(6);
-    parity_calculate: for i in 5 downto 0 generate
-        xor_cascade_calculate(i) <= xor_cascade_calculate(i+1) xor TxBuffer_byte(i);
+    -- calculate parity for transmitting
+    TxParity(6) <= TxBuffer_byte(7) xor TxBuffer_byte(6);
+    tx_parity_calculate: for i in 5 downto 0 generate
+        TxParity(i) <= TxParity(i+1) xor TxBuffer_byte(i);
     end generate;
     
     
-    -- zero things i'm not using yet FIXME
-    RxBuffer_in_use <= '0';
+    debug_rx_bad <= (not RxBuffer(0))
+                and (RxBuffer(9) xnor RxParity(0))
+                and (RxBuffer(10))
+                and (not receiving);
+    
+    -- calculate parity for receiving
+    RxParity(6) <= RxBuffer_byte(7) xor RxBuffer_byte(6);
+    rx_parity_calculate: for i in 5 downto 0 generate
+        RxParity(i) <= RxParity(i+1) xor RxBuffer_byte(i);
+    end generate;
+    
     
     ----------------------------------------------------------------------------
     -- processes
@@ -171,19 +196,18 @@ begin
             if btnClear_rising = '1' then
                 var_transmitting := '0';
                 TxBuffer_in_use <= '0';
-            --elsif btnTx_rising = '1' and TxBuffer_in_use = '1' and var_transmitting = '0' then -- if we want to send
-            elsif btnTx = '1' and TxBuffer_in_use = '1' and var_transmitting = '0' then -- FIXME REMOVE THIS LINE
+            elsif btnTx_rising = '1' and TxBuffer_in_use = '1' and var_transmitting = '0' then -- if we want to send
                 var_transmitting := '1';
                 var_TxBuffer_index := 0;
             end if;
             
             -- if we want to send and it's ok to send
-            --if var_transmitting = '1' and i1CTSin = '0' then -- FIXME REENABLE THIS LINE
-            if var_transmitting = '1' then -- FIXME REMOVE THIS LINE
+            if var_transmitting = '1' and i1CTSin = '0' then
                 o1Tx <= TxBuffer(var_TxBuffer_index);
                 if var_TxBuffer_index = 10 then
+                    -- we're done sending
                     var_transmitting := '0';
-                    --TxBuffer_in_use <= '0'; -- FIXME REENABLE THIS LINE
+                    TxBuffer_in_use <= '0';
                 else
                     var_TxBuffer_index := var_TxBuffer_index + 1;
                 end if;
@@ -204,18 +228,48 @@ begin
     
     -- receive process
     process (clock_sampling, receive_reset)
+        variable var_RxBuffer_index: natural;
+        variable btnRead_rising: STD_LOGIC;
     begin
         if receive_reset = '1' then
             receiving <= '1';
             receiving_clock_odd <= '0';
             RxBuffer_index <= 0;
         elsif rising_edge(clock_sampling) then
+            btnRead_rising  := btnRead  and (not btnRead_old);
+            btnRead_old  <= btnRead;
+            var_RxBuffer_index := RxBuffer_index;
             
-            -- if we need to take a sample
-            if receiving_clock_odd = '1' then
-                
+            if btnRead_rising = '1' and transmitting = '0' then
+                RxBuffer_in_use <= '0';
             end if;
             
+            if RxBuffer_in_use = '0' and i1RTSin = '0' then
+                CTSout_ondemand <= '0';
+            end if;
+            
+            if receive_ignored = '1' then
+                -- if we need to take a sample (rising edge of receiving_clock_odd)
+                if receiving_clock_odd = '0' and receiving = '1' then
+                    
+                    RxBuffer(var_RxBuffer_index) <= i1Rx;
+                    
+                    if var_RxBuffer_index = 10 then
+                        -- we're done receiving
+                        receiving <= '0';
+                        RxBuffer_in_use <= '1';
+                        CTSout_ondemand <= '1';
+                    else
+                        var_RxBuffer_index := var_RxBuffer_index + 1;
+                    end if;
+                    
+                end if;
+            else
+                receiving <= '0';
+                receive_ignored <= '1';
+            end if;
+            
+            RxBuffer_index <= var_RxBuffer_index;
             receiving_clock_odd <= not receiving_clock_odd;
         end if;
     end process;
@@ -229,7 +283,12 @@ begin
             Rx_falling := (not i1Rx) and Rx_old;
             Rx_old <= i1Rx;
         
-            if Rx_falling = '1' and receiving /= '1' then
+            if Rx_falling = '1' and receiving /= '1' then -- Do I need to check for if I have CTS enabled?
+            
+                if CTSout /= '0' then
+                    debug_rx_forced <= '1';
+                end if;
+            
                 clock_sampling_reset <= '1';
                 receive_reset <= '1';
             elsif receiving = '1' then
@@ -237,26 +296,10 @@ begin
                 receive_reset <= '0';
             end if;
             
-        end if;
-    end process;
-    
-    
-    
-    process (btnRead)
-        
-        variable btnRead_rising:  STD_LOGIC;
-        
-        
-    begin
-        if rising_edge(btnRead) then
-            
-            -- btnRead_rising  := btnRead  and (not btnRead_old );
-            -- btnRead_old  <= btnRead ;
-            
-            
-            if transmitting = '0' then
-                
+            if debug_clear_error = '1' then
+                debug_rx_forced <= '0';
             end if;
+            
         end if;
     end process;
     
@@ -308,29 +351,29 @@ begin
             bouncy => i1BtnStore,
             debounced => btnStore
         );
-        
-    -- debouncers
     debouncer1: debouncer
         port map (
             clock => clock,
             bouncy => i1BtnRead,
             debounced => btnRead
         );
-        
-    -- debouncers
     debouncer2: debouncer
         port map (
             clock => clock,
             bouncy => i1BtnTx,
             debounced => btnTx
         );
-        
-    -- debouncers
     debouncer3: debouncer
         port map (
             clock => clock,
             bouncy => i1BtnClear,
             debounced => btnClear
         );
+    debouncer4: debouncer
+        port map (
+            clock => clock,
+            bouncy => i1debug_clear_error,
+            debounced => debug_clear_error
+        );  
     
 end Behavioral;
