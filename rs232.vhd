@@ -34,6 +34,7 @@ entity rs232 is
         debug_clock:         out STD_LOGIC;
         debug_rx_bad:        out STD_LOGIC;
         debug_rx_forced:     out STD_LOGIC;
+        debug_firstrun:      out STD_LOGIC;
         i1debug_clear_error: in  STD_LOGIC
     );
 end rs232;
@@ -127,7 +128,6 @@ begin
     ----------------------------------------------------------------------------
     -- glue logic
     ----------------------------------------------------------------------------
-    debug_clock <= receiving_clock_odd;
     
     o1CTSout <= CTSout;
     o1RTSout <= RTSout;
@@ -156,7 +156,9 @@ begin
         TxParity(i) <= TxParity(i+1) xor TxBuffer_byte(i);
     end generate;
     
-    
+    -- debug things
+    debug_clock <= receiving_clock_odd;
+    debug_firstrun <= not receive_ignored;
     debug_rx_bad <= (not RxBuffer(0))
                 and (RxBuffer(9) xnor RxParity(0))
                 and (RxBuffer(10))

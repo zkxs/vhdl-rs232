@@ -26,7 +26,7 @@ NET "o1RxBuffer_in_use" LOC = "V16" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin 
 NET "o1CTSout_led"      LOC = "U15" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L5P,                          Sch name = LD2
 NET "o1RTSout_led"      LOC = "V15" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L5N,                          Sch name = LD3
 #NET "Led<4>"           LOC = "M11" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L15P,                         Sch name = LD4
-#NET "Led<5>"           LOC = "N11" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L15N,                         Sch name = LD5
+NET "debug_firstrun"    LOC = "N11" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L15N,                         Sch name = LD5
 NET "debug_rx_forced"   LOC = "R11" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L16P,                         Sch name = LD6
 NET "debug_rx_bad"      LOC = "T11" | IOSTANDARD = "LVCMOS33";   #Bank = 2, Pin name = IO_L16N_VREF,                    Sch name = LD7
 
