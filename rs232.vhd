@@ -35,7 +35,8 @@ entity rs232 is
         debug_rx_bad:        out STD_LOGIC;
         debug_rx_forced:     out STD_LOGIC;
         debug_firstrun:      out STD_LOGIC;
-        i1debug_clear_error: in  STD_LOGIC
+        i1debug_clear_error: in  STD_LOGIC;
+        debug_tx_forced:     in  STD_LOGIC
     );
 end rs232;
 
@@ -204,7 +205,7 @@ begin
             end if;
             
             -- if we want to send and it's ok to send
-            if var_transmitting = '1' and i1CTSin = '0' then
+            if var_transmitting = '1' and (i1CTSin = '0' or debug_tx_forced = '1') then
                 o1Tx <= TxBuffer(var_TxBuffer_index);
                 if var_TxBuffer_index = 10 then
                     -- we're done sending
