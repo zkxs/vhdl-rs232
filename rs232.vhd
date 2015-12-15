@@ -267,6 +267,8 @@ begin
             else
                 receiving <= '0';
                 receive_ignored <= '1';
+                RxBuffer_in_use <= '0';
+                CTSout_ondemand <= '1';
             end if;
             
             RxBuffer_index <= var_RxBuffer_index;
