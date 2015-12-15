@@ -306,20 +306,12 @@ begin
                     debug_rx_forced <= '1';
                 end if;
             
-                --clock_sampling_reset <= '1';
+                clock_sampling_reset <= '1';
                 receive_reset <= '1';
             elsif receiving_synchronized = '1' then
-                --clock_sampling_reset <= '0';
+                clock_sampling_reset <= '0';
                 receive_reset <= '0';
             end if;
-            
-            
-            if receiving_synchronized /= '1' then
-                clock_sampling_reset <= '1';
-            elsif receiving_synchronized = '1' then
-                clock_sampling_reset <= '0';
-            end if;
-            
             
             if debug_clear_error = '1' then
                 debug_rx_forced <= '0';
