@@ -302,7 +302,7 @@ begin
             clock_sampling_reset <= '0';
             receive_reset <= '0';
             
-            if Rx_falling = '1' and receiving_synchronized /= '1' then -- Do I need to check for if I have CTS enabled?
+            if Rx_falling = '1' and receiving_synchronized /= '1' then -- Do I need to check if CTS is enabled?
             
                 if CTSout /= '0' then
                     debug_rx_forced <= '1';
@@ -392,7 +392,7 @@ begin
             debounced => debug_clear_error
         );
     
-    
+    -- synchronizer
     sync0: synchronizer
         port map (
             clk => clock,
