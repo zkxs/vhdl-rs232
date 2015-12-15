@@ -299,7 +299,9 @@ begin
         
             Rx_falling := (not i1Rx) and Rx_old;
             Rx_old <= i1Rx;
-        
+            clock_sampling_reset <= '0';
+            receive_reset <= '0';
+            
             if Rx_falling = '1' and receiving_synchronized /= '1' then -- Do I need to check for if I have CTS enabled?
             
                 if CTSout /= '0' then
@@ -308,9 +310,6 @@ begin
             
                 clock_sampling_reset <= '1';
                 receive_reset <= '1';
-            elsif receiving_synchronized = '1' then
-                clock_sampling_reset <= '0';
-                receive_reset <= '0';
             end if;
             
             if debug_clear_error = '1' then
