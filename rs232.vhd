@@ -108,7 +108,7 @@ architecture Behavioral of rs232 is
     signal clock_sampling_reset: STD_LOGIC;
     signal clock_transmit: STD_LOGIC;
     
-    signal CTSin_cached: STD_LOGIC := 1; -- active low, just like CTS
+    signal CTSin_cached: STD_LOGIC := '1'; -- active low, just like CTS
     
     signal CTSout: STD_LOGIC;
     signal CTSout_ondemand: STD_LOGIC;
@@ -234,7 +234,7 @@ begin
                         -- we're done sending
                         var_transmitting := '0';
                         TxBuffer_in_use <= '0';
-                        var_CTSin_cached := 1;
+                        var_CTSin_cached := '1';
                     else
                         var_TxBuffer_index := var_TxBuffer_index + 1;
                     end if;
