@@ -108,6 +108,8 @@ architecture Behavioral of rs232 is
     signal clock_sampling_reset: STD_LOGIC;
     signal clock_transmit: STD_LOGIC;
     
+    signal CTSin_cached: STD_LOGIC := 1; -- active low, just like CTS
+    
     signal CTSout: STD_LOGIC;
     signal CTSout_ondemand: STD_LOGIC;
     signal RTSout: STD_LOGIC := '0';
@@ -192,6 +194,7 @@ begin
     process (clock_transmit)
         variable var_transmitting: STD_LOGIC;
         variable var_TxBuffer_index: natural;
+        variable var_CTSin_cached: STD_LOGIC;
         
         variable btnClear_rising: STD_LOGIC;
         variable btnStore_rising: STD_LOGIC;
@@ -200,6 +203,7 @@ begin
         if rising_edge(clock_transmit) then
             var_transmitting := transmitting;
             var_TxBuffer_index := TxBuffer_index;
+            var_CTSin_cached := CTSin_cached;
             btnClear_rising := btnClear and (not btnClear_old);
             btnStore_rising := btnStore and (not btnStore_old);
             btnTx_rising    := btnTx    and (not btnTx_old   );
@@ -217,14 +221,23 @@ begin
             end if;
             
             -- if we want to send and it's ok to send
-            if var_transmitting = '1' and (i1CTSin = '0' or debug_tx_forced = '1') then
-                o1Tx <= TxBuffer(var_TxBuffer_index);
-                if var_TxBuffer_index = 10 then
-                    -- we're done sending
-                    var_transmitting := '0';
-                    TxBuffer_in_use <= '0';
-                else
-                    var_TxBuffer_index := var_TxBuffer_index + 1;
+            if var_transmitting = '1' then
+                
+                -- check CTSin
+                if i1CTSin = '0' then
+                    var_CTSin_cached := '0';
+                end if;
+                
+                if (var_CTSin_cached = '0') or (debug_tx_forced = '1') then
+                    o1Tx <= TxBuffer(var_TxBuffer_index);
+                    if var_TxBuffer_index = 10 then
+                        -- we're done sending
+                        var_transmitting := '0';
+                        TxBuffer_in_use <= '0';
+                        var_CTSin_cached := 1;
+                    else
+                        var_TxBuffer_index := var_TxBuffer_index + 1;
+                    end if;
                 end if;
             else -- if not transmitting
                 o1Tx <= '1';
@@ -238,6 +251,7 @@ begin
             
             transmitting <= var_transmitting;
             TxBuffer_index <= var_TxBuffer_index;
+            CTSin_cached <= var_CTSin_cached;
         end if;
     end process;
     
@@ -302,7 +316,7 @@ begin
             clock_sampling_reset <= '0';
             receive_reset <= '0';
             
-            if Rx_falling = '1' and receiving_synchronized /= '1' then -- Do I need to check if CTS is enabled?
+            if (Rx_falling = '1') and (receiving_synchronized /= '1') then -- Do I need to check if CTS is enabled?
             
                 if CTSout /= '0' then
                     debug_rx_forced <= '1';
